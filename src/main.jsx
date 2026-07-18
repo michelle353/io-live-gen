@@ -2,7 +2,7 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import IOLiveGen from "./IOLiveGen.jsx";
 
-const PASSWORD = "M1chel0505";
+const PASSWORD = "M1chael0505";
 const SESSION_KEY = "io_live_auth";
 
 function PasswordGate({ children }) {
