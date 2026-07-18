@@ -105,39 +105,41 @@ export default function IOLiveGen() {
     return JSON.parse(stripped.slice(start, end + 1));
   };
 
-  const RESEARCH_SYSTEM = `You are a nonprofit research specialist. Given a Canadian organization name and basic profile, populate a structured intake JSON using everything you know about this organization.
-
-For current funders: draw on CRA T3010 filings, annual reports, press releases, and their website. Name specific funders — do not say "various government funders." If you are uncertain about a funder, include them with a note "(unconfirmed — validate)".
-
-Output ONLY a valid JSON object — no preamble, no markdown fences, no explanation:
-{
-  "orgName": "Full official organization name",
-  "orgType": "Registered Charity / Professional Association / Social Enterprise / NFP",
-  "mission": "2–3 sentences describing their mission and primary programs",
-  "geography": "Specific geography they serve",
-  "location": "City, Province",
-  "sector": "Primary sector (e.g. Mental Health / GBV / Housing / Environment)",
-  "audience": "Who they serve — specific populations and how",
-  "audienceSize": "Estimated reach or membership (e.g. 500–1,000 clients annually / 2,000+ members)",
-  "influence": "What decisions their audience influences — purchasing, policy, employer decisions, etc.",
-  "currentFunding": "Named current funders and sponsors. Include government programs, foundations, and corporate sponsors. Separate with commas.",
-  "gaps": "Funding categories or specific funders likely absent given their sector, geography, and known funder mix. Be specific.",
-  "annualBudget": "Best estimate of annual operating budget",
-  "confidence": "High (well-known org with good public data) / Medium (some public data found) / Low (limited public information)"
-}`;
-
   const researchOrg = async () => {
     setScreen("researching");
     setError(null);
+
+    const SYSTEM = `You are a Canadian nonprofit research specialist with deep knowledge of the Canadian charitable sector.
+
+Your job: given an organization name, populate a complete intake profile JSON using your training knowledge. Be specific and confident. Do not hedge unnecessarily. If you know the org, say what you know. If you are inferring, note it briefly inline.
+
+For current funders: name specific government programs, foundations, and corporate sponsors known to fund this type of organization in this geography. If you know this specific org's funders, name them. If not, name the most likely funders for this sector and geography and mark them "(likely)".
+
+CRITICAL: Output ONLY the raw JSON object below. No preamble. No markdown. No explanation. Start your response with { and end with }.
+
+{
+  "orgName": "Full official organization name",
+  "orgType": "Registered Charity / Professional Association / Social Enterprise / NFP",
+  "mission": "2–3 sentences. Their mission and primary programs.",
+  "geography": "Specific geography they serve",
+  "location": "City, Province",
+  "sector": "Primary sector",
+  "audience": "Who they serve — specific populations and how",
+  "audienceSize": "Estimated reach or membership",
+  "influence": "What decisions their audience influences",
+  "currentFunding": "Named funders — government programs, foundations, corporate sponsors. Comma-separated. Mark uncertain ones (likely) or (unconfirmed).",
+  "gaps": "Specific funders or categories likely absent. Be direct.",
+  "annualBudget": "Best estimate",
+  "confidence": "High / Medium / Low"
+}`;
 
     const USER = `Organization: ${orgName.trim()}
 Approximate Budget: ${budget}
 Primary Focus: ${focus}
 Geographic Reach: ${geo}
 
-Research this organization thoroughly. Populate all fields. Name specific current funders — this is the most important field. Return the JSON object only.`;
+Populate the full intake profile. Be specific about funders — this is the most important field. Start your response with { immediately.`;
 
-    // ── Phase 1: Try with web search ────────────────────────────────────────
     let profile = null;
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -146,8 +148,7 @@ Research this organization thoroughly. Populate all fields. Name specific curren
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
           max_tokens: 2000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          system: RESEARCH_SYSTEM,
+          system: SYSTEM,
           messages: [{ role: "user", content: USER }],
         }),
       });
@@ -155,29 +156,7 @@ Research this organization thoroughly. Populate all fields. Name specific curren
         const data = await res.json();
         profile = extractJSON(data);
       }
-    } catch { /* fall through to phase 2 */ }
-
-    // ── Phase 2: If phase 1 returned nothing useful, try without web search ─
-    const isEmpty = !profile || !profile.mission || (!profile.currentFunding && !profile.audience);
-    if (isEmpty) {
-      try {
-        const res2 = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-6",
-            max_tokens: 2000,
-            system: RESEARCH_SYSTEM,
-            messages: [{ role: "user", content: USER + "\n\nUse your training knowledge about this organization and Canadian nonprofit sector peers if web data is limited. Make reasonable inferences and flag them." }],
-          }),
-        });
-        if (res2.ok) {
-          const data2 = await res2.json();
-          const p2 = extractJSON(data2);
-          if (p2 && (p2.mission || p2.audience)) profile = p2;
-        }
-      } catch { /* both phases failed */ }
-    }
+    } catch { /* fall through to fallback */ }
 
     // ── Apply whatever we have ───────────────────────────────────────────────
     if (profile && (profile.mission || profile.audience || profile.currentFunding)) {
