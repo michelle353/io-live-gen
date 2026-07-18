@@ -62,6 +62,7 @@ export default function IOLiveGen() {
   const [emails, setEmails]       = useState(null);   // lightweight email drafts
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [error, setError]         = useState(null);
+  const [debugLog, setDebugLog]   = useState([]);
   const [retryCount, setRetryCount] = useState(0);
   const [stepIdx, setStepIdx]     = useState(0);
   const [activeSteps, setActiveSteps] = useState(GEN_STEPS);
@@ -141,8 +142,10 @@ Geographic Reach: ${geo}
 Populate the full intake profile. Be specific about funders — this is the most important field. Start your response with { immediately.`;
 
     let profile = null;
+    const log = [];
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      log.push("→ Sending API request…");
+      const res = await fetch("/api/anthropic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -152,11 +155,23 @@ Populate the full intake profile. Be specific about funders — this is the most
           messages: [{ role: "user", content: USER }],
         }),
       });
+      log.push(`→ HTTP status: ${res.status}`);
       if (res.ok) {
         const data = await res.json();
+        const textBlocks = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text);
+        log.push(`→ Content blocks: ${data.content?.length || 0} (text blocks: ${textBlocks.length})`);
+        log.push(`→ Raw text (first 300 chars): ${textBlocks.join("").slice(0,300)}`);
+        log.push(`→ Stop reason: ${data.stop_reason}`);
         profile = extractJSON(data);
+        log.push(`→ Profile extracted: ${profile ? "YES — " + Object.keys(profile).join(", ") : "NO"}`);
+      } else {
+        const errData = await res.json().catch(()=>({}));
+        log.push(`→ API error: ${JSON.stringify(errData).slice(0,200)}`);
       }
-    } catch { /* fall through to fallback */ }
+    } catch(e) {
+      log.push(`→ Exception: ${e.message}`);
+    }
+    setDebugLog(log);
 
     // ── Apply whatever we have ───────────────────────────────────────────────
     if (profile && (profile.mission || profile.audience || profile.currentFunding)) {
@@ -253,7 +268,7 @@ Date: ${new Date().toLocaleDateString("en-CA",{month:"long",year:"numeric"})}
 Apply Rule 11, Rule 12, T3010 standard. Minimum ${MIN_TARGETS} targets. Return exact JSON schema.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/anthropic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -321,7 +336,7 @@ Contact status: ${t.contactStatus||"PATH"}`).join("\n\n")}
 Tone: warm, direct, peer-to-peer. Not a grant application. A relationship-opening conversation.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/anthropic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -353,7 +368,7 @@ Tone: warm, direct, peer-to-peer. Not a grant application. A relationship-openin
     <div style={{ fontFamily:"Arial, sans-serif", minHeight:"100vh", background:C.soft }}>
       {screen==="orient"      && <OrientScreen orgName={orgName} setOrgName={setOrgName} budget={budget} setBudget={setBudget} focus={focus} setFocus={setFocus} geo={geo} setGeo={setGeo} canOrient={canOrient} onNext={researchOrg} error={error} />}
       {screen==="researching" && <ProgressScreen steps={RESEARCH_STEPS} stepIdx={stepIdx} orgName={orgName} title="Researching organization…" subtitle="Scanning CRA T3010, annual reports, and funder databases" />}
-      {screen==="intake"      && <IntakeScreen intake={intake} setIntake={setIntake} onGenerate={()=>generate(false)} onReset={reset} error={error} />}
+      {screen==="intake"      && <IntakeScreen intake={intake} setIntake={setIntake} onGenerate={()=>generate(false)} onReset={reset} error={error} debugLog={debugLog} />}
       {screen==="generating"  && <ProgressScreen steps={GEN_STEPS} stepIdx={stepIdx} orgName={intake.orgName} title="Building intelligence package…" subtitle="Applying Rule 11 tone and Rule 12 evidence standards" />}
       {screen==="review"      && intel && <ReviewScreen intel={intel} orgName={intake.orgName} emailsLoading={emailsLoading} emails={emails} onApprove={()=>setScreen("reveal")} onRetry={()=>generate(true)} onReset={reset} />}
       {screen==="reveal"      && intel && <RevealScreen intel={intel} intake={intake} emails={emails} emailsLoading={emailsLoading} onReset={reset} />}
@@ -402,7 +417,7 @@ function OrientScreen({ orgName,setOrgName,budget,setBudget,focus,setFocus,geo,s
 }
 
 // ── INTAKE ────────────────────────────────────────────────────────────────────
-function IntakeScreen({ intake, setIntake, onGenerate, onReset, error }) {
+function IntakeScreen({ intake, setIntake, onGenerate, onReset, error, debugLog }) {
   const set = (k,v) => setIntake(prev=>({...prev,[k]:v}));
   const conf = intake._confidence||"Medium";
   return (
@@ -439,6 +454,17 @@ function IntakeScreen({ intake, setIntake, onGenerate, onReset, error }) {
         <FR label="Funding gaps (inferred)" value={intake.gaps} onChange={v=>set("gaps",v)} rows={2} note="Adjust based on your knowledge" />
       </div>
       {error && <ErrBox msg={error} />}
+
+      {/* Debug panel — remove once research is confirmed working */}
+      {debugLog && debugLog.length > 0 && (
+        <div style={{ background:"#1A1A2E", borderRadius:8, padding:"12px 14px", marginBottom:14, fontFamily:"monospace" }}>
+          <div style={{ color:"#A0A0C0", fontSize:10, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Debug — Research API Response</div>
+          {debugLog.map((line, i) => (
+            <div key={i} style={{ color: line.includes("YES") ? "#4AE080" : line.includes("NO") || line.includes("error") || line.includes("Exception") ? "#FF6B6B" : "#C0C0E0", fontSize:11, lineHeight:1.6 }}>{line}</div>
+          ))}
+        </div>
+      )}
+
       <div style={{ display:"flex", gap:10 }}>
         <button onClick={onGenerate} style={{ flex:3, padding:"14px", background:C.ink, color:C.white, border:"none", borderRadius:10, fontSize:15, fontWeight:"bold", cursor:"pointer" }}>Generate Intelligence Package →</button>
         <button onClick={onReset} style={{ flex:1, padding:"14px", background:"transparent", color:C.muted, border:`1px solid ${C.border}`, borderRadius:10, fontSize:13, cursor:"pointer" }}>← Start Over</button>
