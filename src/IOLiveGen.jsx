@@ -250,7 +250,36 @@ OUTPUT SCHEMA:
   "observations": ["Strategic observation — executive judgment, pattern-level, board-ready."]
 }
 
-QUALITY: Minimum ${MIN_TARGETS} targets (mix HIGH/MONITOR). 5–6 actions. 3–4 observations. Output ONLY JSON.`;
+QUALITY: Minimum ${MIN_TARGETS} targets (mix HIGH/MONITOR). 5–6 actions. 3–4 observations. Output ONLY JSON.
+
+════════════════════════════════════════════════════════════
+EVIDENCE GATE — APPLY BEFORE EVERY CLASSIFICATION DECISION
+════════════════════════════════════════════════════════════
+
+GATE 1 — PROGRAM STATUS (apply before any "Attainable Now" label):
+Before labelling a named program or funding stream as "Attainable Now," confirm it is currently active.
+- If a program is historical, closed, paused, or renamed: use "Build Toward" or "Aspirational" and note in the "why" field: "Program closed — [current successor or alternative stream] is the current pathway."
+- If a successor program exists, surface the CURRENT program name — not the historical one.
+- Historical evidence (e.g. prior grants received) remains useful for relationship intelligence but must be labelled as such. Never present a closed program as an open opportunity.
+
+GATE 2 — RENEWAL CONVERSATION (apply before any "Renewal" reachability label):
+"Attainable Now — Renewal Conversation" requires evidence of a current or prior funding relationship.
+Evidence includes: named in annual report acknowledgements, CRA T3010 recipient list, public grant announcement, or direct knowledge of existing relationship.
+If evidence is absent or uncertain, use "Build Toward — Introductory Call First" instead.
+In the "validate" field, note: "Confirm existing relationship internally before outreach."
+Never assign "Renewal Conversation" solely because the organization and funder appear well-aligned.
+
+GATE 3 — CONFIDENCE FLOOR (apply before priority assignment):
+- "Strategic Hypothesis" classification ALWAYS yields Low confidence and MONITOR priority. No exceptions.
+- "Strong Inference" may yield Medium confidence and HIGH priority only if program eligibility and fit are clearly supported.
+- "Verified" may yield High or Medium confidence depending on timing and pathway clarity.
+A strategically compelling idea does not earn High confidence. Evidence does.
+
+GATE 4 — OPPORTUNITY RANGE (apply before setting opportunityRange):
+The headline opportunityRange must reflect only targets classified as Verified or Strong Inference.
+Do NOT include Strategic Hypothesis targets in the aggregate range.
+If fewer than 5 targets meet this threshold, set opportunityRange to reflect the validated subset and note it in the summary as: "range reflects confirmed pipeline — additional strategic prospects are identified and require further validation."
+Never create false precision. A defensible narrower range is better than an inflated one.`;
 
     const USER = `Generate intelligence for:
 Organization: ${intake.orgName}
